@@ -156,29 +156,34 @@ server.tool(
   }
 );
 
-// Add a tool to save a table to disk
+// Add a tool to save the entire database file
 server.tool(
-  'save_table',
+  'save_database',
   {
-    table: z.string().describe('Name of the table to save'),
-    filepath: z.string().describe('Path to the file to write the table to')
+    filepath: z.string().optional().describe('Path to save the database file to (defaults to original path)')
   },
-  async ({ table, filepath }) => {
+  async ({ filepath }) => {
     try {
-      // Get the table data
-      const results = await db.executeQuery(`SELECT * FROM ${table}`);
+      // If no filepath is provided, use the original database path
+      const targetPath = filepath || dbPath;
       
-      // Convert to JSON and write to file
-      const jsonData = JSON.stringify(results, null, 2);
-      await fs.writeFile(filepath, jsonData);
+      if (targetPath === dbPath) {
+        // If saving to the same file, we need to create a temporary copy first
+        const tempPath = `${dbPath}.tmp`;
+        await fs.copyFile(dbPath, tempPath);
+        await fs.rename(tempPath, dbPath);
+      } else {
+        // Copy to a different location
+        await fs.copyFile(dbPath, targetPath);
+      }
       
       return {
-        content: [{ type: 'text', text: `Successfully saved table '${table}' to ${filepath}` }]
+        content: [{ type: 'text', text: `Successfully saved database to ${targetPath}` }]
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
-        content: [{ type: 'text', text: `Error saving table: ${errorMessage}` }],
+        content: [{ type: 'text', text: `Error saving database: ${errorMessage}` }],
         isError: true
       };
     }

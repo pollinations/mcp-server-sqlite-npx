@@ -92,7 +92,7 @@ Full example when using nvm on Windows:
 - Provides SQLite database access via MCP tools
 - Supports read-only mode for queries
 - Includes safety checks to prevent destructive operations
-- Allows saving table data to disk as JSON
+- Allows saving the entire database file to a new location
 
 ## Available Tools
 
@@ -104,10 +104,9 @@ Full example when using nvm on Windows:
 2. `list_tables` - List all tables in the SQLite database
    - No parameters required
 
-3. `save_table` - Save a table to disk as JSON
+3. `save_database` - Save the entire database file to a new location
    - Parameters:
-     - `table`: Name of the table to save
-     - `filepath`: Path to the file to write the table to
+     - `filepath` (optional): Path to save the database file to (defaults to original path)
 
 ## Development
 

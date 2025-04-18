@@ -92,6 +92,7 @@ Full example when using nvm on Windows:
 - Provides SQLite database access via MCP tools
 - Supports read-only mode for queries
 - Includes safety checks to prevent destructive operations
+- Allows writing data to files on disk
 
 ## Available Tools
 
@@ -102,6 +103,12 @@ Full example when using nvm on Windows:
 
 2. `list_tables` - List all tables in the SQLite database
    - No parameters required
+
+3. `write_file` - Write data to a file on disk
+   - Parameters:
+     - `filepath`: Path to the file to write
+     - `content`: Content to write to the file
+     - `append` (optional): If true, append to the file instead of overwriting
 
 ## Development
 

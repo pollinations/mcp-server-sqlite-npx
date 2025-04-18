@@ -5,6 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import sqlite3 from 'sqlite3';
 import { z } from 'zod';
 import path from 'path';
+import fs from 'fs/promises';
 
 // Command line argument parsing
 const args = process.argv.slice(2);
@@ -149,6 +150,40 @@ server.tool(
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Add a tool to write data to a file
+server.tool(
+  'write_file',
+  {
+    filepath: z.string().describe('Path to the file to write'),
+    content: z.string().describe('Content to write to the file'),
+    append: z.boolean().optional().describe('If true, append to the file instead of overwriting')
+  },
+  async ({ filepath, content, append }) => {
+    try {
+      // Ensure the file path is absolute or resolve it relative to the current directory
+      const absolutePath = path.isAbsolute(filepath) ? filepath : path.resolve(process.cwd(), filepath);
+      
+      // Ensure the directory exists
+      const directory = path.dirname(absolutePath);
+      await fs.mkdir(directory, { recursive: true });
+      
+      // Write the file
+      const flag = append ? 'a' : 'w';
+      await fs.writeFile(absolutePath, content, { flag });
+      
+      return {
+        content: [{ type: 'text', text: `Successfully ${append ? 'appended to' : 'wrote'} file: ${absolutePath}` }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: 'text', text: `Error writing file: ${errorMessage}` }],
         isError: true
       };
     }

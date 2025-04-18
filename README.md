@@ -6,7 +6,19 @@ This fork uses the higher-level `McpServer` API from the MCP SDK instead of the 
 
 ## Installation
 
-You can use the package directly via npx:
+You can install the package directly from GitHub:
+
+```bash
+npm install pollinations/mcp-server-sqlite-npx
+```
+
+Or use it via npx without installing:
+
+```bash
+npx github:pollinations/mcp-server-sqlite-npx /path/to/your/database.db
+```
+
+You can also use the package directly via npx:
 
 ```bash
 npx @pollinations/mcp-server-sqlite /path/to/your/database.db

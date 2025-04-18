@@ -1,6 +1,6 @@
 {
   "name": "@pollinations/mcp-server-sqlite",
-  "version": "0.5.0",
+  "version": "0.6.2",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -35,6 +35,8 @@
     "url": "git+https://github.com/pollinations/mcp-server-sqlite-npx.git"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
   },

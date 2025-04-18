@@ -88,11 +88,83 @@ Full example when using nvm on Windows:
 
 ## Features
 
-- Uses the higher-level `McpServer` API from the MCP SDK for cleaner code
-- Provides SQLite database access via MCP tools
-- Supports read-only mode for queries
-- Includes safety checks to prevent destructive operations
-- Allows saving the entire database file to a new location
+- Execute SQL queries directly against your SQLite database
+- List all tables in your database
+- Save the entire database file with an optional target path
+- MCP Resources for exploring database schema and table data 
+- MCP Prompts for standardized SQL operations
+- HTTP API for direct access to tables, views, and query results (great for integrating with other services)
+
+## HTTP Server API
+
+The SQLite MCP server also runs a lightweight HTTP server that allows other services to access database tables, views, and execute queries directly without going through the LLM context. This is especially useful for integrating with visualization tools or other MCP servers that need to work with large datasets.
+
+### Configuration
+
+By default, the HTTP server runs on port 31111. You can override this by setting the `MCP_HTTP_PORT` environment variable:
+
+```bash
+MCP_HTTP_PORT=4000 npx @pollinations/mcp-server-sqlite <database-path>
+```
+
+### Endpoints
+
+#### Get Table or View Data
+
+```
+GET /data/:name
+```
+
+- **`:name`**: Name of the table or view
+- **Query Parameters**:
+  - `format`: `csv` (default) or `json`
+  - `limit`: Maximum number of rows to return (default: 1000)
+
+**Example**:
+```
+http://localhost:31111/data/employees
+http://localhost:31111/data/employees?format=json
+http://localhost:31111/data/monthly_sales?limit=500
+```
+
+#### Execute Custom Query
+
+```
+GET /query
+```
+
+- **Query Parameters**:
+  - `sql`: SQL query to execute (must be a SELECT query)
+  - `format`: `csv` (default) or `json`
+
+**Example**:
+```
+http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2021
+http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2021&format=json
+```
+
+### Usage with Other MCP Servers
+
+The HTTP server allows other MCP servers to access data directly without passing it through the LLM context. For example, a visualization MCP server can query your SQLite server directly:
+
+```javascript
+// In a visualization MCP server tool implementation
+async ({ dataUrl, chartType }) => {
+  // Fetch data directly from SQLite server HTTP endpoint
+  const response = await fetch(dataUrl);
+  const csvData = await response.text();
+  
+  // Parse CSV and create visualization
+  const parsedData = parseCSV(csvData);
+  const chart = createChart(parsedData, chartType);
+  
+  return { 
+    content: [{ type: 'image', data: chart }]
+  };
+}
+```
+
+The MCP resource system automatically includes HTTP URLs in the resource content, making it easy to reference in other tools.
 
 ## Available Tools
 
@@ -107,6 +179,39 @@ Full example when using nvm on Windows:
 3. `save_database` - Save the entire database file to a new location
    - Parameters:
      - `filepath` (optional): Path to save the database file to (defaults to original path)
+
+4. `execute_query_with_url` - Execute a SQL query and get a URL to access the full results via HTTP.
+   - Parameters:
+     - `query`: SQL query to execute (must be a SELECT query)
+     - `description`: (optional) Description of the query purpose
+
+5. `create_view` - Create a SQL view with an optional description, which can then be accessed via HTTP.
+   - Parameters:
+     - `name`: Name for the view
+     - `query`: SELECT query that defines the view
+     - `description`: (optional) Description of the view purpose
+
+## Available Resources
+
+1. `sqlite://schema` - Get the schema of all tables in the database
+   - Returns detailed information about all tables and their columns
+
+2. `sqlite://tables/{tableName}` - Get data from a specific table
+   - Dynamic resource that returns the first 100 rows from the specified table
+   - The list of available tables can be discovered through the resources/list endpoint
+
+## Available Prompts
+
+1. `select-data` - Generate a prompt to execute and analyze a SELECT query
+   - Parameters:
+     - `table`: Name of the table to query
+     - `columns` (optional): Comma-separated list of columns to select (defaults to *)
+     - `where` (optional): WHERE clause condition
+     - `limit` (optional): Maximum number of rows to return
+
+2. `analyze-table` - Generate a prompt to analyze a table's structure and data
+   - Parameters:
+     - `table`: Name of the table to analyze
 
 ## Development
 

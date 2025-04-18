@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ToolSchema,
-} from '@modelcontextprotocol/sdk/types.js';
 import sqlite3 from 'sqlite3';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import path from 'path';
 
 // Command line argument parsing
@@ -26,6 +20,9 @@ const ExecuteQueryArgsSchema = z.object({
   query: z.string().describe('SQL query to execute'),
   read_only: z.boolean().optional().describe('If true, only SELECT queries will be allowed'),
 });
+
+// Define the type based on the schema
+type ExecuteQueryArgs = z.infer<typeof ExecuteQueryArgsSchema>;
 
 interface RunResult {
   affectedRows: number;
@@ -108,85 +105,55 @@ class SqliteDatabase {
   }
 }
 
-// Server setup
-const server = new Server(
-  {
-    name: 'sqlite-manager',
-    version: '0.2.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  },
-);
+// Server setup using the higher-level McpServer class
+const server = new McpServer({
+  name: 'sqlite-manager',
+  version: '0.2.0',
+});
 
 const db = new SqliteDatabase(dbPath);
 
-const ToolInputSchema = ToolSchema.shape.inputSchema;
-type ToolInput = z.infer<typeof ToolInputSchema>;
-
-// Tool handlers
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: 'execute_query',
-        description: 'Execute any SQL query on the SQLite database',
-        inputSchema: zodToJsonSchema(
-          ExecuteQueryArgsSchema,
-        ) as ToolInput,
-      },
-      {
-        name: 'list_tables',
-        description: 'List all tables in the SQLite database',
-        inputSchema: { type: 'object', properties: {} } as ToolInput,
-      }
-    ],
-  };
-});
-
-server.setRequestHandler(CallToolRequestSchema, async request => {
-  try {
-    const { name, arguments: args } = request.params;
-
-    switch (name) {
-      case 'execute_query': {
-        const parsed = ExecuteQueryArgsSchema.safeParse(args);
-        if (!parsed.success) {
-          throw new Error(
-            `Invalid arguments for execute_query: ${parsed.error}`,
-          );
-        }
-        const results = await db.executeQuery(parsed.data.query, parsed.data.read_only);
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(results, null, 2) },
-          ],
-        };
-      }
-
-      case 'list_tables': {
-        const tables = await db.listTables();
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(tables, null, 2) },
-          ],
-        };
-      }
-
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+// Add tools to the server using the simplified API
+server.tool(
+  'execute_query',
+  {
+    query: z.string(),
+    read_only: z.boolean().optional()
+  },
+  async ({ query, read_only }) => {
+    try {
+      const results = await db.executeQuery(query, read_only);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(results, null, 2) }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+        isError: true
+      };
     }
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    return {
-      content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-      isError: true,
-    };
   }
-});
+);
+
+server.tool(
+  'list_tables',
+  {},
+  async () => {
+    try {
+      const tables = await db.listTables();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(tables, null, 2) }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+        isError: true
+      };
+    }
+  }
+);
 
 // Start server
 async function runServer() {

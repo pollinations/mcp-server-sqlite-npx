@@ -562,3 +562,18 @@ runServer().catch(error => {
   console.error('[MCP] Fatal error running server:', error);
   process.exit(1);
 });
+
+// Add exit handlers for graceful shutdown
+process.on('SIGINT', () => {
+  console.error('[MCP] Received SIGINT signal. Shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.error('[MCP] Received SIGTERM signal. Shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('exit', (code) => {
+  console.error(`[MCP] Process exiting with code ${code}`);
+});

@@ -156,34 +156,29 @@ server.tool(
   }
 );
 
-// Add a tool to write data to a file
+// Add a tool to save a table to disk
 server.tool(
-  'write_file',
+  'save_table',
   {
-    filepath: z.string().describe('Path to the file to write'),
-    content: z.string().describe('Content to write to the file'),
-    append: z.boolean().optional().describe('If true, append to the file instead of overwriting')
+    table: z.string().describe('Name of the table to save'),
+    filepath: z.string().describe('Path to the file to write the table to')
   },
-  async ({ filepath, content, append }) => {
+  async ({ table, filepath }) => {
     try {
-      // Ensure the file path is absolute or resolve it relative to the current directory
-      const absolutePath = path.isAbsolute(filepath) ? filepath : path.resolve(process.cwd(), filepath);
+      // Get the table data
+      const results = await db.executeQuery(`SELECT * FROM ${table}`);
       
-      // Ensure the directory exists
-      const directory = path.dirname(absolutePath);
-      await fs.mkdir(directory, { recursive: true });
-      
-      // Write the file
-      const flag = append ? 'a' : 'w';
-      await fs.writeFile(absolutePath, content, { flag });
+      // Convert to JSON and write to file
+      const jsonData = JSON.stringify(results, null, 2);
+      await fs.writeFile(filepath, jsonData);
       
       return {
-        content: [{ type: 'text', text: `Successfully ${append ? 'appended to' : 'wrote'} file: ${absolutePath}` }]
+        content: [{ type: 'text', text: `Successfully saved table '${table}' to ${filepath}` }]
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
-        content: [{ type: 'text', text: `Error writing file: ${errorMessage}` }],
+        content: [{ type: 'text', text: `Error saving table: ${errorMessage}` }],
         isError: true
       };
     }

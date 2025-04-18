@@ -22,22 +22,9 @@ if (args.length !== 1) {
 const dbPath = path.resolve(args[0]);
 
 // Schema definitions
-const ReadQueryArgsSchema = z.object({
-  query: z.string().describe('SELECT SQL query to execute'),
-});
-
-const WriteQueryArgsSchema = z.object({
-  query: z
-    .string()
-    .describe('INSERT, UPDATE, or DELETE SQL query to execute'),
-});
-
-const CreateTableArgsSchema = z.object({
-  query: z.string().describe('CREATE TABLE SQL statement'),
-});
-
-const DescribeTableArgsSchema = z.object({
-  table_name: z.string().describe('Name of the table to describe'),
+const ExecuteQueryArgsSchema = z.object({
+  query: z.string().describe('SQL query to execute'),
+  read_only: z.boolean().optional().describe('If true, only SELECT queries will be allowed'),
 });
 
 interface RunResult {
@@ -101,32 +88,22 @@ class SqliteDatabase {
     );
   }
 
-  async describeTable(tableName: string): Promise<any[]> {
-    return this.query(`PRAGMA table_info(${tableName})`);
-  }
-
-  async executeReadQuery(query: string): Promise<any[]> {
-    if (!query.trim().toUpperCase().startsWith('SELECT')) {
-      throw new Error(
-        'Only SELECT queries are allowed for read_query',
-      );
+  async executeQuery(query: string, readOnly?: boolean): Promise<any[]> {
+    const trimmedQuery = query.trim().toUpperCase();
+    
+    // Validate query if read-only mode is enabled
+    if (readOnly === true && !trimmedQuery.startsWith('SELECT')) {
+      throw new Error('Only SELECT queries are allowed in read-only mode');
     }
-    return this.query(query);
-  }
-
-  async executeWriteQuery(query: string): Promise<any[]> {
-    if (query.trim().toUpperCase().startsWith('SELECT')) {
-      throw new Error(
-        'SELECT queries are not allowed for write_query',
-      );
+    
+    // For safety, prevent certain destructive operations
+    if (
+      trimmedQuery.startsWith('DROP ') ||
+      trimmedQuery.includes('DELETE FROM') && !trimmedQuery.includes('WHERE')
+    ) {
+      throw new Error('Potentially destructive query detected. Please add constraints or remove this safety check if intended.');
     }
-    return this.query(query);
-  }
-
-  async createTable(query: string): Promise<any[]> {
-    if (!query.trim().toUpperCase().startsWith('CREATE TABLE')) {
-      throw new Error('Only CREATE TABLE statements are allowed');
-    }
+    
     return this.query(query);
   }
 }
@@ -135,7 +112,7 @@ class SqliteDatabase {
 const server = new Server(
   {
     name: 'sqlite-manager',
-    version: '0.1.0',
+    version: '0.2.0',
   },
   {
     capabilities: {
@@ -154,40 +131,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: 'read_query',
-        description: 'Execute a SELECT query on the SQLite database',
+        name: 'execute_query',
+        description: 'Execute any SQL query on the SQLite database',
         inputSchema: zodToJsonSchema(
-          ReadQueryArgsSchema,
-        ) as ToolInput,
-      },
-      {
-        name: 'write_query',
-        description:
-          'Execute an INSERT, UPDATE, or DELETE query on the SQLite database',
-        inputSchema: zodToJsonSchema(
-          WriteQueryArgsSchema,
-        ) as ToolInput,
-      },
-      {
-        name: 'create_table',
-        description: 'Create a new table in the SQLite database',
-        inputSchema: zodToJsonSchema(
-          CreateTableArgsSchema,
+          ExecuteQueryArgsSchema,
         ) as ToolInput,
       },
       {
         name: 'list_tables',
         description: 'List all tables in the SQLite database',
         inputSchema: { type: 'object', properties: {} } as ToolInput,
-      },
-      {
-        name: 'describe_table',
-        description:
-          'Get the schema information for a specific table',
-        inputSchema: zodToJsonSchema(
-          DescribeTableArgsSchema,
-        ) as ToolInput,
-      },
+      }
     ],
   };
 });
@@ -197,47 +151,17 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params;
 
     switch (name) {
-      case 'read_query': {
-        const parsed = ReadQueryArgsSchema.safeParse(args);
+      case 'execute_query': {
+        const parsed = ExecuteQueryArgsSchema.safeParse(args);
         if (!parsed.success) {
           throw new Error(
-            `Invalid arguments for read_query: ${parsed.error}`,
+            `Invalid arguments for execute_query: ${parsed.error}`,
           );
         }
-        const results = await db.executeReadQuery(parsed.data.query);
+        const results = await db.executeQuery(parsed.data.query, parsed.data.read_only);
         return {
           content: [
             { type: 'text', text: JSON.stringify(results, null, 2) },
-          ],
-        };
-      }
-
-      case 'write_query': {
-        const parsed = WriteQueryArgsSchema.safeParse(args);
-        if (!parsed.success) {
-          throw new Error(
-            `Invalid arguments for write_query: ${parsed.error}`,
-          );
-        }
-        const results = await db.executeWriteQuery(parsed.data.query);
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(results, null, 2) },
-          ],
-        };
-      }
-
-      case 'create_table': {
-        const parsed = CreateTableArgsSchema.safeParse(args);
-        if (!parsed.success) {
-          throw new Error(
-            `Invalid arguments for create_table: ${parsed.error}`,
-          );
-        }
-        await db.createTable(parsed.data.query);
-        return {
-          content: [
-            { type: 'text', text: 'Table created successfully' },
           ],
         };
       }
@@ -247,21 +171,6 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         return {
           content: [
             { type: 'text', text: JSON.stringify(tables, null, 2) },
-          ],
-        };
-      }
-
-      case 'describe_table': {
-        const parsed = DescribeTableArgsSchema.safeParse(args);
-        if (!parsed.success) {
-          throw new Error(
-            `Invalid arguments for describe_table: ${parsed.error}`,
-          );
-        }
-        const schema = await db.describeTable(parsed.data.table_name);
-        return {
-          content: [
-            { type: 'text', text: JSON.stringify(schema, null, 2) },
           ],
         };
       }

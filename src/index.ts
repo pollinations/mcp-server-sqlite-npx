@@ -137,7 +137,7 @@ export { SqliteDatabase };
 console.error(`[MCP] Creating MCP server instance`);
 const server = new McpServer({
   name: 'sqlite-manager',
-  version: '0.6.4',
+  version: '0.6.5',
 });
 
 console.error(`[MCP] Creating SQLite database instance`);

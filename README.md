@@ -143,6 +143,16 @@ http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2
 http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2021&format=json
 ```
 
+### Response Formats
+
+- **CSV Format**: Returns data as plain text CSV. This is the default format and will be displayed directly in the browser.
+- **JSON Format**: Returns data as a JSON array of objects. Useful for programmatic access or when you need structured data.
+
+To specify the format, add `format=json` to your query parameters:
+```
+http://localhost:31111/query?sql=SELECT%20*%20FROM%20users&format=json
+```
+
 ## Cloudflare Tunnel Setup
 
 You can expose your SQLite MCP server to the internet using Cloudflare Tunnels. This allows you to access your database from anywhere without opening ports on your firewall.

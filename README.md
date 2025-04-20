@@ -143,6 +143,76 @@ http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2
 http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2021&format=json
 ```
 
+## Cloudflare Tunnel Setup
+
+You can expose your SQLite MCP server to the internet using Cloudflare Tunnels. This allows you to access your database from anywhere without opening ports on your firewall.
+
+### Prerequisites
+
+1. A Cloudflare account
+2. The `cloudflared` CLI tool installed
+3. A domain managed by Cloudflare
+
+### Automated Setup
+
+We provide a script to automate the setup process:
+
+```bash
+# Make the script executable if needed
+chmod +x scripts/setup-cloudflare-tunnel.sh
+
+# Basic usage (creates a tunnel named "sqlite-mcp" with domain "sqlite-mcp.example.com")
+./scripts/setup-cloudflare-tunnel.sh
+
+# Custom configuration
+./scripts/setup-cloudflare-tunnel.sh my-tunnel my-tunnel.mydomain.com 8080
+```
+
+### Manual Setup
+
+If you prefer to set up the tunnel manually:
+
+1. Log in to Cloudflare:
+   ```bash
+   cloudflared login
+   ```
+
+2. Create a tunnel:
+   ```bash
+   cloudflared tunnel create sqlite-mcp
+   ```
+
+3. Associate a domain with your tunnel:
+   ```bash
+   cloudflared tunnel route dns sqlite-mcp your-subdomain.yourdomain.com
+   ```
+
+4. Create a configuration file (e.g., `cloudflared-config.yml`):
+   ```yaml
+   tunnel: <your-tunnel-id>
+   credentials-file: ~/.cloudflared/<your-tunnel-id>.json
+
+   ingress:
+     - hostname: your-subdomain.yourdomain.com
+       service: http://localhost:31111
+     - service: http_status:404
+   ```
+
+5. Run the tunnel:
+   ```bash
+   cloudflared tunnel --config cloudflared-config.yml run
+   ```
+
+### Running as a Service
+
+For production environments, you should run the tunnel as a service:
+
+```bash
+sudo cloudflared service install --config cloudflared-config.yml
+```
+
+**Note**: After setting up a new tunnel, it may take 5-15 minutes for SSL certificates to be fully provisioned. If you encounter SSL errors, please wait and try again later.
+
 ### Usage with Other MCP Servers
 
 The HTTP server allows other MCP servers to access data directly without passing it through the LLM context. For example, a visualization MCP server can query your SQLite server directly:

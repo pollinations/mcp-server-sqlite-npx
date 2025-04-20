@@ -80,6 +80,7 @@ export function createHttpServer(
           // Convert to CSV
           console.error(`[HTTP] Converting to CSV format`);
           res.setHeader('Content-Type', 'text/csv');
+          res.setHeader('Content-Disposition', 'inline');
           
           if (data.length === 0) {
             console.error(`[HTTP] No data to return, sending empty response`);
@@ -146,6 +147,7 @@ export function createHttpServer(
           // Convert to CSV
           console.error(`[HTTP] Converting to CSV format`);
           res.setHeader('Content-Type', 'text/csv');
+          res.setHeader('Content-Disposition', 'inline');
           
           if (result.length === 0) {
             console.error(`[HTTP] No data to return, sending empty response`);

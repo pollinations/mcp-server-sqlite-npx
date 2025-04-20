@@ -10,18 +10,31 @@ import { createHttpServer } from './http-server.js';
 
 // Command line argument parsing
 const args = process.argv.slice(2);
-if (args.length !== 1) {
-  console.error('Usage: mcp-server-sqlite-npx <database-path>');
+let dbPath = '';
+let enableSSE = false;
+
+// Parse command line arguments
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--sse' || args[i] === '-s') {
+    enableSSE = true;
+  } else if (!dbPath) {
+    dbPath = args[i];
+  }
+}
+
+if (!dbPath) {
+  console.error('Usage: mcp-server-sqlite-npx <database-path> [--sse|-s]');
+  console.error('  --sse, -s  Enable Server-Sent Events (SSE) transport for MCP');
   process.exit(1);
 }
 
-const dbPath = path.resolve(args[0]);
+dbPath = path.resolve(dbPath);
 console.error(`[MCP] Database path resolved to: ${dbPath}`);
+console.error(`[MCP] SSE transport: ${enableSSE ? 'enabled' : 'disabled'}`);
 
 // Default HTTP port (can be overridden via environment variable)
 const HTTP_PORT = process.env.MCP_HTTP_PORT ? parseInt(process.env.MCP_HTTP_PORT) : 31111;
 console.error(`[MCP] Using HTTP port: ${HTTP_PORT} (override with MCP_HTTP_PORT env var)`);
-
 
 interface RunResult {
   affectedRows: number;
@@ -124,7 +137,7 @@ export { SqliteDatabase };
 console.error(`[MCP] Creating MCP server instance`);
 const server = new McpServer({
   name: 'sqlite-manager',
-  version: '0.6.1',
+  version: '0.6.4',
 });
 
 console.error(`[MCP] Creating SQLite database instance`);
@@ -132,7 +145,7 @@ const db = new SqliteDatabase(dbPath);
 
 // Initialize the HTTP server
 console.error(`[MCP] Initializing HTTP server`);
-const httpServer = createHttpServer(db, HTTP_PORT);
+const { httpServer, sseTransport } = createHttpServer(db, HTTP_PORT, enableSSE, server);
 
 // Add resources to expose database schema and table data
 // Resource for database schema
@@ -540,11 +553,16 @@ server.tool(
 // Start server
 async function runServer() {
   console.error(`[MCP] Starting MCP server`);
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  // Use console.error to show error output.
-  // console.log results in JSon exception.
-  console.error(`[MCP] SQLite MCP Server running on stdio`);
+  
+  // If SSE transport is not enabled, use stdio transport
+  if (!enableSSE) {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error(`[MCP] SQLite MCP Server running on stdio`);
+  } else {
+    console.error(`[MCP] SQLite MCP Server running with SSE transport`);
+  }
+  
   console.error(`[MCP] Database path: ${dbPath}`);
   console.error(`[MCP] HTTP server running at http://localhost:${HTTP_PORT}`);
   console.error(`[MCP] Available resources:`);
@@ -556,6 +574,10 @@ async function runServer() {
   console.error(`[MCP] - list_tables - List all tables in the database`);
   console.error(`[MCP] - save_database - Save the database file`);
   console.error(`[MCP] - create_view - Create a SQL view`);
+  
+  if (enableSSE) {
+    console.error(`[MCP] SSE endpoint: http://localhost:${HTTP_PORT}/mcp-sse`);
+  }
 }
 
 runServer().catch(error => {

@@ -2,21 +2,61 @@ import express from 'express';
 import cors from 'cors';
 import http from 'http';
 import { SqliteDatabase } from './index.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 /**
  * Create a minimal HTTP server that exposes SQLite data
  * @param db The SQLite database instance
  * @param port The port to run the server on (default: 31111)
- * @returns The HTTP server instance
+ * @param enableSSE Whether to enable SSE transport for MCP (default: false)
+ * @param mcpServer Optional MCP server instance to connect with SSE transport
+ * @returns The HTTP server instance and SSE transport (if enabled)
  */
-export function createHttpServer(db: SqliteDatabase, port: number = 31111) {
-  console.error(`[HTTP] Initializing HTTP server on port ${port}`);
+export function createHttpServer(
+  db: SqliteDatabase, 
+  port: number = 31111, 
+  enableSSE: boolean = false,
+  mcpServer?: McpServer
+) {
+  console.error(`[HTTP] Initializing HTTP server on port ${port}${enableSSE ? ' with SSE support' : ''}`);
   const app = express();
   app.use(cors());
+  app.use(express.json()); // Add JSON body parser middleware
   console.error(`[HTTP] CORS middleware enabled`);
   
   // Create server instance
   const httpServer = http.createServer(app);
+  
+  // Initialize SSE transport if enabled
+  let sseTransport: SSEServerTransport | null = null;
+  
+  if (enableSSE) {
+    console.error(`[HTTP] Setting up SSE transport for MCP`);
+    
+    // Set up SSE endpoint
+    app.get('/mcp-sse', async (req, res) => {
+      console.error(`[HTTP] SSE connection established`);
+      sseTransport = new SSEServerTransport('/mcp-messages', res);
+      
+      // Connect the MCP server to the SSE transport if provided
+      if (mcpServer) {
+        console.error(`[HTTP] Connecting MCP server to SSE transport`);
+        await mcpServer.connect(sseTransport);
+      }
+    });
+    
+    // Set up message endpoint for client-to-server communication
+    app.post('/mcp-messages', (req, res) => {
+      console.error(`[HTTP] Received message via SSE transport: ${JSON.stringify(req.body).substring(0, 100)}...`);
+      if (sseTransport) {
+        sseTransport.handlePostMessage(req, res, req.body);
+      } else {
+        console.error(`[HTTP] No SSE transport available to handle message`);
+        res.status(503).json({ error: 'SSE transport not initialized' });
+      }
+    });
+  }
   
   // Endpoint to get table or view data in CSV or JSON format
   app.get('/data/:name', (req: express.Request, res: express.Response) => {
@@ -146,7 +186,12 @@ export function createHttpServer(db: SqliteDatabase, port: number = 31111) {
     console.error(`[HTTP] Available endpoints:`);
     console.error(`[HTTP] - GET /data/:name - Get table or view data`);
     console.error(`[HTTP] - GET /query?sql=... - Execute a SELECT query`);
+    
+    if (enableSSE) {
+      console.error(`[HTTP] - GET /mcp-sse - SSE endpoint for MCP`);
+      console.error(`[HTTP] - POST /mcp-messages - Message endpoint for MCP`);
+    }
   });
   
-  return httpServer;
+  return { httpServer, sseTransport };
 }

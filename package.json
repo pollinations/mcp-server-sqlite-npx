@@ -34,6 +34,9 @@
     "type": "git",
     "url": "git+https://github.com/pollinations/mcp-server-sqlite-npx.git"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",

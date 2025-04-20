@@ -13,7 +13,12 @@
   ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/index.js test-db/orders.sqlite",
+    "dev": "node --loader ts-node/esm src/index.ts test-db/orders.sqlite",
+    "dev:watch": "nodemon --exec \"node --loader ts-node/esm\" src/index.ts test-db/orders.sqlite",
+    "start:prod": "NODE_ENV=production MCP_BASE_URL=https://sqlite-mcp.pollinations.ai node dist/index.js test-db/orders.sqlite",
+    "start:sse": "MCP_ENABLE_SSE=true node dist/index.js test-db/orders.sqlite",
+    "start:prod:sse": "NODE_ENV=production MCP_BASE_URL=https://sqlite-mcp.pollinations.ai MCP_ENABLE_SSE=true node dist/index.js test-db/orders.sqlite",
     "type-check": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npm run build"
@@ -41,6 +46,8 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
     "@types/node": "^22.10.2",
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {

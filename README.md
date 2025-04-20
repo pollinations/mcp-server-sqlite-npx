@@ -31,7 +31,6 @@ Add the following to `claude_desktop_config.json`:
     "sqlite": {
       "command": "/absolute/path/to/npx",
       "args": [
-        "-y",
         "@pollinations/mcp-server-sqlite",
         "/absolute/path/to/database.db"
       ],
@@ -52,7 +51,6 @@ Full example when using nvm on macOS:
     "sqlite": {
       "command": "/Users/{username}/.nvm/versions/node/v22.12.0/bin/npx",
       "args": [
-        "-y",
         "@pollinations/mcp-server-sqlite",
         "/Users/{username}/projects/database.db"
       ],
@@ -73,7 +71,6 @@ Full example when using nvm on Windows:
     "sqlite": {
       "command": "C:\\Program Files\\nodejs\\npx.cmd",
       "args": [
-        "-y",
         "@pollinations/mcp-server-sqlite",
         "C:\\Users\\{username}\\projects\\database.db"
       ],
@@ -95,6 +92,185 @@ Full example when using nvm on Windows:
 - MCP Prompts for standardized SQL operations
 - HTTP API for direct access to tables, views, and query results (great for integrating with other services)
 
+## Database Schema
+
+The SQLite database contains the following tables and views:
+
+### Tables
+
+#### orders
+```sql
+CREATE TABLE "orders" (
+    order_id TEXT,
+    order_date TEXT,
+    status TEXT,
+    return_status TEXT,
+    article_id TEXT,
+    quantity INTEGER,
+    customer_id INTEGER,
+    customer_name TEXT,
+    customer_address TEXT,
+    customer_postal_code INTEGER,
+    customer_city TEXT,
+    article_name TEXT,
+    article_number TEXT,
+    PRIMARY KEY (order_id, article_id)
+)
+```
+
+#### customers
+```sql
+CREATE TABLE "customers" (
+    customer_id INTEGER PRIMARY KEY,
+    name TEXT,
+    name2 TEXT,
+    street TEXT,
+    house_number TEXT,
+    postal_code INTEGER,
+    city TEXT,
+    phone1 TEXT,
+    phone2 TEXT,
+    customer_class TEXT,
+    stc_id INTEGER,
+    stc TEXT,
+    vb INTEGER,
+    asm_unit_id INTEGER,
+    vl_unit_id INTEGER,
+    vb_unit_id INTEGER,
+    payment_term TEXT,
+    payment_term_sp TEXT,
+    customer_group TEXT,
+    parent_group TEXT
+)
+```
+
+#### articles
+```sql
+CREATE TABLE "articles" (
+    article_id TEXT PRIMARY KEY,
+    item_number TEXT,
+    name TEXT,
+    ordering_unit_name TEXT,
+    description TEXT,
+    valid_during TEXT,
+    keywords TEXT,
+    ordering_unit INTEGER,
+    serial_number_required TEXT,
+    batch_number_required TEXT,
+    type TEXT,
+    package_count INTEGER,
+    packaging_unit INTEGER,
+    packed_dimensions TEXT,
+    packed_volume REAL,
+    packed_weight_kg REAL,
+    constructed_dimensions TEXT,
+    constructed_weight_kg REAL,
+    max_orderable INTEGER,
+    min_orderable INTEGER,
+    allow_returns TEXT,
+    price REAL,
+    ordering_unit_price REAL,
+    purchase_price REAL,
+    responsible_employee_id INTEGER,
+    min_stock INTEGER,
+    has_expiration_date TEXT,
+    notify_on_low_stock TEXT,
+    book_stock_change_to TEXT,
+    state TEXT,
+    approval_comment TEXT,
+    associated_product_ids TEXT,
+    image_ids TEXT,
+    master_id TEXT,
+    product_config_ids TEXT,
+    category_ids TEXT,
+    catalog_ids TEXT,
+    tax_class_id TEXT,
+    custom_attr_stcs TEXT,
+    custom_attr_brand TEXT,
+    custom_attr_asset_types TEXT,
+    custom_attr_region TEXT,
+    custom_attr_classification TEXT,
+    custom_attr_product_rank TEXT,
+    product_permission_employee_ids TEXT
+)
+```
+
+#### employees
+```sql
+CREATE TABLE "employees" (
+    employee_id INTEGER PRIMARY KEY,
+    name TEXT,
+    number INTEGER,
+    personal_number INTEGER,
+    first_name TEXT,
+    last_name TEXT,
+    email TEXT,
+    address TEXT,
+    birth_date TEXT,
+    employment_start_date TEXT,
+    inactive TEXT,
+    organization_unit_ids INTEGER,
+    assistant_ids TEXT
+)
+```
+
+#### units
+```sql
+CREATE TABLE "units" (
+    unit_id INTEGER PRIMARY KEY,
+    name TEXT,
+    number INTEGER,
+    level_id TEXT,
+    parent_id INTEGER,
+    children_ids TEXT,
+    structure_id TEXT,
+    custom_attr_personal_number INTEGER
+)
+```
+
+### Views
+
+#### orders_with_addresses
+```sql
+CREATE VIEW orders_with_addresses AS
+SELECT 
+    o.order_id,
+    o.order_date,
+    o.status,
+    o.article_id,
+    a.name AS article_name,
+    a.item_number AS article_number,
+    o.quantity,
+    e.name AS employee_name,
+    c.name AS customer_name,
+    c.street || ' ' || c.house_number AS address,
+    c.postal_code,
+    c.city
+FROM 
+    orders o
+LEFT JOIN 
+    customers c ON o.customer_id = c.customer_id
+LEFT JOIN 
+    articles a ON o.article_id = a.article_id
+LEFT JOIN
+    employees e ON a.responsible_employee_id = e.employee_id
+```
+
+#### employee_emails
+```sql
+CREATE VIEW employee_emails AS 
+SELECT email FROM employees
+```
+
+### Relationships
+
+- orders.customer_id → customers.customer_id
+- orders.article_id → articles.article_id
+- articles.responsible_employee_id → employees.employee_id
+- customers.vb_unit_id → units.unit_id
+- customers.asm_unit_id → units.unit_id
+- customers.vl_unit_id → units.unit_id
+
 ## HTTP Server API
 
 The SQLite MCP server also runs a lightweight HTTP server that allows other services to access database tables, views, and execute queries directly without going through the LLM context. This is especially useful for integrating with visualization tools or other MCP servers that need to work with large datasets.
@@ -104,7 +280,7 @@ The SQLite MCP server also runs a lightweight HTTP server that allows other serv
 By default, the HTTP server runs on port 31111. You can override this by setting the `MCP_HTTP_PORT` environment variable:
 
 ```bash
-MCP_HTTP_PORT=4000 npx @pollinations/mcp-server-sqlite <database-path>
+MCP_HTTP_PORT=4000 npx @pollinations/mcp-server-sqlite /path/to/your/database.db
 ```
 
 ### Endpoints
@@ -122,9 +298,9 @@ GET /data/:name
 
 **Example**:
 ```
-http://localhost:31111/data/employees
+http://localhost:31111/data/orders
 http://localhost:31111/data/employees?format=json
-http://localhost:31111/data/monthly_sales?limit=500
+http://localhost:31111/data/orders_with_addresses?limit=500
 ```
 
 #### Execute Custom Query
@@ -139,8 +315,8 @@ GET /query
 
 **Example**:
 ```
-http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2021
-http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2021&format=json
+http://localhost:31111/query?sql=SELECT%20*%20FROM%20orders%20WHERE%20status%20%3D%20%27Completed%27
+http://localhost:31111/query?sql=SELECT%20customer_name%2C%20COUNT(*)%20FROM%20orders%20GROUP%20BY%20customer_name&format=json
 ```
 
 ### Response Formats
@@ -150,7 +326,7 @@ http://localhost:31111/query?sql=SELECT%20*%20FROM%20users%20WHERE%20age%20%3E%2
 
 To specify the format, add `format=json` to your query parameters:
 ```
-http://localhost:31111/query?sql=SELECT%20*%20FROM%20users&format=json
+http://localhost:31111/query?sql=SELECT%20*%20FROM%20orders&format=json
 ```
 
 ## Cloudflare Tunnel Setup
@@ -245,6 +421,50 @@ async ({ dataUrl, chartType }) => {
 ```
 
 The MCP resource system automatically includes HTTP URLs in the resource content, making it easy to reference in other tools.
+
+## Example Queries
+
+Here are some example queries you can run against the database:
+
+### Basic Queries
+
+1. List all orders with customer information:
+```sql
+SELECT o.order_id, o.order_date, o.status, c.name AS customer_name
+FROM orders o
+JOIN customers c ON o.customer_id = c.customer_id
+LIMIT 10
+```
+
+2. Find all articles managed by a specific employee:
+```sql
+SELECT a.article_id, a.name, a.item_number, e.name AS employee_name
+FROM articles a
+JOIN employees e ON a.responsible_employee_id = e.employee_id
+LIMIT 10
+```
+
+3. Get order statistics by customer:
+```sql
+SELECT c.name, COUNT(o.order_id) AS order_count, SUM(o.quantity) AS total_items
+FROM orders o
+JOIN customers c ON o.customer_id = c.customer_id
+GROUP BY c.name
+ORDER BY order_count DESC
+LIMIT 10
+```
+
+### Using Views
+
+1. Get orders with complete address information:
+```sql
+SELECT * FROM orders_with_addresses LIMIT 10
+```
+
+2. List all employee emails:
+```sql
+SELECT * FROM employee_emails
+```
 
 ## Available Tools
 
